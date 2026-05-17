@@ -96,6 +96,6 @@ def parse(mgp_id, raw_html):
         'country': country,
         'year': year,
         'subject': subject,
-        'advisors': advisors,
+        'advisors': sorted(advisors),
         'students': students,
     }

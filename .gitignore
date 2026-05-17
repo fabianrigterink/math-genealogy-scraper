@@ -22,3 +22,6 @@ ehthumbs.db
 Thumbs.db
 
 venv/
+data.json
+errors.txt
+metadata.json

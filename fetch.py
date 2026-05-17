@@ -1,10 +1,17 @@
 import asyncio
 import json
+import os
 
 import aiohttp
-import async_timeout
 
 from parse import parse
+
+
+def atomic_write_json(path, payload):
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as outfile:
+        json.dump(payload, outfile)
+    os.replace(tmp, path)
 
 ERROR_STRING = 'You have specified an ID that does not exist in the database.'
 errors = {}
@@ -27,9 +34,6 @@ except Exception as e:
 existing = set(x['id'] for x in data)
 print('Skipping {} known records'.format(len(existing)))
 
-sem = asyncio.BoundedSemaphore(5)
-loop = asyncio.get_event_loop()
-
 id_min = metadata['id_min']
 id_max = metadata['id_max']
 bad_ids = set(metadata.get('bad_ids', []))
@@ -38,17 +42,22 @@ try_further = max_found + 5000
 
 
 async def fetch(session, url):
-    with async_timeout.timeout(10):
+    async with asyncio.timeout(10):
         async with session.get(url) as response:
             print('fetching {}'.format(url))
             return await response.text()
 
 
-async def fetch_by_id(session, mgp_id):
+async def fetch_by_id(session, sem, mgp_id):
     async with sem:
         url = 'https://genealogy.math.ndsu.nodak.edu/id.php?id={}'.format(
             mgp_id)
-        raw_html = await fetch(session, url)
+        try:
+            raw_html = await fetch(session, url)
+        except (TimeoutError, aiohttp.ClientError) as e:
+            print('Network error on id={}: {}'.format(mgp_id, e))
+            errors[mgp_id] = 'network: {}'.format(e)
+            return
 
         if ERROR_STRING in raw_html:
             print('bad id={}'.format(mgp_id))
@@ -71,32 +80,32 @@ async def fetch_by_id(session, mgp_id):
 
 
 async def main():
+    sem = asyncio.BoundedSemaphore(5)
     # remove `and i not in bad_ids` if you want to retry previous failures
-    async with aiohttp.ClientSession(loop=loop) as session:
-        await asyncio.wait([
-            fetch_by_id(session, i) for i in range(id_min, try_further)
+    async with aiohttp.ClientSession() as session:
+        await asyncio.gather(*[
+            fetch_by_id(session, sem, i)
+            for i in range(id_min, try_further)
             if i not in existing and i not in bad_ids
         ])
 
 
-loop.run_until_complete(main())
+asyncio.run(main())
 
 print('Done fetching, saving to disk...')
 
-with open('errors.txt', 'w') as outfile:
+processed = set(x['id'] for x in data)
+atomic_write_json('data.json', {'nodes': data})
+atomic_write_json('metadata.json', {
+    'id_min': id_min,
+    'id_max': max(processed),
+    'bad_ids': sorted(bad_ids),
+})
+
+tmp = 'errors.txt.tmp'
+with open(tmp, 'w') as outfile:
     for i, error in errors.items():
         outfile.write('{},{}\n'.format(i, error))
-
-with open('data.json', 'w') as outfile:
-    json.dump({'nodes': data}, outfile)
-
-processed = set(x['id'] for x in data)
-with open('metadata.json', 'w') as outfile:
-    json.dump(
-        {
-            'id_min': id_min,
-            'id_max': max(processed),
-            'bad_ids': list(bad_ids),
-        }, outfile)
+os.replace(tmp, 'errors.txt')
 
 print('Done!')
