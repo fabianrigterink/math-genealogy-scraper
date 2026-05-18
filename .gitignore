@@ -21,10 +21,10 @@ docs/build/
 ehthumbs.db
 Thumbs.db
 
-venv/
 *.json
 *.txt
 *.pkl
 *.csv
 *.html
+!requirements.txt
 .claude
