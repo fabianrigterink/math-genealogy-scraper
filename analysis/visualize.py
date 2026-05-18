@@ -9,6 +9,7 @@ import argparse
 import html
 import pickle
 import sys
+from pathlib import Path
 
 import graphviz
 import networkx as nx
@@ -73,15 +74,21 @@ def build_dot(G, root):
     return dot, len(ancestor_ids)
 
 
-def render_html(G, root, output_path):
-    dot, n_nodes = build_dot(G, root)
-    svg = dot.pipe(format="svg", encoding="utf-8")
-    if svg.startswith("<?xml"):
-        svg = svg.split("?>", 1)[1].lstrip()
+_BINARY_FORMATS = {".png", ".pdf", ".jpg", ".jpeg", ".gif"}
+_TEXT_FORMATS = {".svg", ".dot"}
 
+
+def render(G, root, output_path):
+    dot, n_nodes = build_dot(G, root)
+    ext = Path(output_path).suffix.lower()
     focal_name = G.nodes[root].get("name") or f"#{root}"
-    title = html.escape("Math Genealogy: " + focal_name)
-    page = f"""<!DOCTYPE html>
+
+    if ext == ".html":
+        svg = dot.pipe(format="svg", encoding="utf-8")
+        if svg.startswith("<?xml"):
+            svg = svg.split("?>", 1)[1].lstrip()
+        title = html.escape("Math Genealogy: " + focal_name)
+        page = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -102,8 +109,21 @@ window.addEventListener("load", () => {{
 </body>
 </html>
 """
-    with open(output_path, "w") as f:
-        f.write(page)
+        with open(output_path, "w") as f:
+            f.write(page)
+    elif ext in _TEXT_FORMATS:
+        data = dot.pipe(format=ext[1:], encoding="utf-8")
+        with open(output_path, "w") as f:
+            f.write(data)
+    elif ext in _BINARY_FORMATS:
+        data = dot.pipe(format=ext[1:])
+        with open(output_path, "wb") as f:
+            f.write(data)
+    else:
+        supported = sorted({".html"} | _TEXT_FORMATS | _BINARY_FORMATS)
+        raise SystemExit(
+            f"unsupported output extension {ext!r}; choose one of {supported}"
+        )
 
     print(f"wrote {output_path}")
     print(f"  focal: {focal_name}")
@@ -112,11 +132,13 @@ window.addEventListener("load", () => {{
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--graph", default="graph.pkl",
+    parser.add_argument("--graph", default="analysis/graph.pkl",
                         help="preprocessed graph from build_graph.py")
     parser.add_argument("--name", required=True,
                         help="mathematician to graph (exact or unique substring)")
-    parser.add_argument("--output", default="genealogy.html")
+    parser.add_argument("--output", default="analysis/genealogy.html",
+                        help="output file; format is chosen from extension "
+                             "(.html, .svg, .png, .pdf, .jpg, .gif, .dot)")
     args = parser.parse_args()
 
     with open(args.graph, "rb") as f:
@@ -124,7 +146,7 @@ def main():
     print(f"loaded {args.graph}: {G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges")
 
     root = find_person(G, args.name)
-    render_html(G, root, args.output)
+    render(G, root, args.output)
 
 
 if __name__ == "__main__":

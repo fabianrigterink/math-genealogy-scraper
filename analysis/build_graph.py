@@ -66,7 +66,7 @@ def remove_cycles(G):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", default="data.json")
-    parser.add_argument("--output", default="graph.pkl")
+    parser.add_argument("--output", default="analysis/graph.pkl")
     args = parser.parse_args()
 
     print(f"loading {args.input}")
