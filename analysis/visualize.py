@@ -4,6 +4,8 @@ Renders the ancestor DAG for one mathematician using `dot`. Output inlines the
 SVG plus the svg-pan-zoom CDN library, so the file opens directly in a browser
 (no web server needed) with pan/zoom, native hover tooltips, and clickable
 nodes that link to each mathematician's MGP page.
+
+Author: Fabian Rigterink
 """
 import argparse
 import html

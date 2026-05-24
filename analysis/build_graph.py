@@ -2,6 +2,8 @@
 
 Reads data.json, drops implausible years, removes cycles via a year-based
 heuristic, and writes the resulting graph to graph.pkl.
+
+Author: Fabian Rigterink
 """
 import argparse
 import json
