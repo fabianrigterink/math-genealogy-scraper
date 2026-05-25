@@ -31,3 +31,5 @@ Thumbs.db
 !requirements.txt
 .claude
 analysis/blog/*
+# Fetched at runtime from the rigter-ink repo (single source of truth)
+analysis/blogstyle.py
